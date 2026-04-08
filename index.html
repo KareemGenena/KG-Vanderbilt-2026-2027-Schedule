@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nephrology Call Schedule</title>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f5f7fa;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 15px 25px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.header img {
+  height: 60px;
+  margin-right: 20px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.controls {
+  padding: 15px 25px;
+  background: #fff;
+  display: flex;
+  gap: 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+select {
+  padding: 8px;
+  font-size: 14px;
+}
+
+#calendar {
+  max-width: 1100px;
+  margin: 20px auto;
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.fc-event {
+  font-size: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <img src="logo.png">
+  <div class="title">Nephrology Call Schedule 2026–2027</div>
+</div>
+
+<div class="controls">
+  <select id="doctorFilter">
+    <option value="all">All Nephrologists</option>
+  </select>
+
+  <select id="teamFilter">
+    <option value="all">All Teams</option>
+    <option value="A">Team A</option>
+    <option value="B">Team B</option>
+    <option value="C">Team C</option>
+    <option value="Consults">Consults</option>
+    <option value="Rogers">Rogers</option>
+  </select>
+</div>
+
+<div id="calendar"></div>
+
+<script>
+
+// ----------- DATA -----------
+
+const events = [];
+
+// Helper to normalize names
+function normalize(name) {
+  if (!name) return "";
+  name = name.trim();
+  if (name.toLowerCase().includes("genena") || name.toLowerCase().includes("kareem")) return "Genena";
+  return name;
+}
+
+// GENERAL SCHEDULE (sample inserted — shortened for clarity, you can extend easily)
+const generalData = [
+  {start:"2026-07-13", end:"2026-07-20", A:"Triozzi", B:"Manolopoulou", C:"Genena"},
+  {start:"2026-08-17", end:"2026-08-24", A:"Kurian", B:"Genena", C:"Steitz"},
+  {start:"2026-10-05", end:"2026-10-12", A:"Ikizler", B:"Kurian", C:"Genena"},
+  {start:"2026-11-16", end:"2026-11-23", A:"Manolopoulou", B:"Luther", C:"Genena"},
+  {start:"2026-12-21", end:"2026-12-28", A:"Kurian", B:"Genena", C:"Burdick"},
+  {start:"2027-01-11", end:"2027-01-18", A:"Sanghani", B:"Genena", C:"Huston"},
+  {start:"2027-03-15", end:"2027-03-22", A:"Gardner", B:"Genena", C:"Burdick"},
+  {start:"2027-04-12", end:"2027-04-19", A:"Umeukeje", B:"Genena", C:"Steitz"},
+  {start:"2027-05-03", end:"2027-05-10", A:"Burgner", B:"Genena", C:"Sanghani"},
+  {start:"2027-06-28", end:"2027-07-05", A:"Kurian", B:"Genena", C:"Siew"},
+];
+
+// Convert to events
+generalData.forEach(w => {
+  ["A","B","C"].forEach(team => {
+    events.push({
+      title: `${normalize(w[team])} (Team ${team})`,
+      start: w.start,
+      end: w.end,
+      team: team,
+      doctor: normalize(w[team])
+    });
+  });
+});
+
+// TRANSPLANT DATA
+const transplantData = [
+  {
+    start: "2026-09-14T07:00:00",
+    end:   "2026-09-18T12:00:00",
+    team: "Consults"
+  },
+  {
+    start: "2026-11-09T07:00:00",
+    end:   "2026-11-16T00:00:00",
+    team: "Rogers"
+  },
+  {
+    start: "2027-04-26T07:00:00",
+    end:   "2027-05-03T00:00:00",
+    team: "Rogers"
+  },
+  {
+    start: "2027-06-01T07:00:00",
+    end:   "2027-06-06T12:00:00",
+    team: "Consults"
+  }
+];
+transplantData.forEach(t => {
+  events.push({
+    title: `Genena (${t.team})`,
+    start: t.start,
+    end: t.end,
+    team: t.team,
+    doctor: "Genena",
+    color: "#2a9d8f"
+  });
+});
+
+// ----------- FILTERS -----------
+
+const doctorFilter = document.getElementById("doctorFilter");
+const teamFilter = document.getElementById("teamFilter");
+
+// Populate doctors
+const doctors = [...new Set(events.map(e => e.doctor))];
+doctors.forEach(d => {
+  const opt = document.createElement("option");
+  opt.value = d;
+  opt.textContent = d;
+  doctorFilter.appendChild(opt);
+});
+
+// ----------- DEFAULT DATE LOGIC -----------
+
+function getDefaultDate() {
+  const today = new Date();
+  const start = new Date("2026-07-01");
+  const end = new Date("2027-06-30");
+
+  if (today < start) return start;
+  if (today > end) return end;
+  return today;
+}
+
+// ----------- CALENDAR -----------
+
+const calendar = new FullCalendar.Calendar(document.getElementById('calendar'), {
+  initialView: 'dayGridMonth',
+  initialDate: getDefaultDate(),
+  headerToolbar: {
+    left: 'prev,next today',
+    center: 'title',
+    right: 'dayGridMonth,timeGridWeek'
+  },
+
+  events: function(fetchInfo, successCallback) {
+    let filtered = events;
+
+    const doc = doctorFilter.value;
+    const team = teamFilter.value;
+
+    if (doc !== "all") {
+      filtered = filtered.filter(e => e.doctor === doc);
+    }
+
+    if (team !== "all") {
+      filtered = filtered.filter(e => e.team === team);
+    }
+
+    successCallback(filtered);
+  }
+});
+
+calendar.render();
+
+// Refresh on filter change
+doctorFilter.onchange = () => calendar.refetchEvents();
+teamFilter.onchange = () => calendar.refetchEvents();
+
+</script>
+
+</body>
+</html>
